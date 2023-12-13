@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/gocolly/colly"
 	"log"
-	"math/rand"
 )
 
 type ReplyContainer struct {
@@ -20,14 +19,9 @@ type ReplyContainer struct {
 				Sex   string `json:"sex"`   //性别
 			} `json:"member"`
 			Content struct {
-				Message  string        `json:"message"` //评论内容
-				Members  []interface{} `json:"members"`
-				MaxLine  int           `json:"max_line"`
-				Contents struct {
-					Message string        `json:"message"`
-					Members []interface{} `json:"members"`
-					MaxLine int           `json:"max_line"`
-				}
+				Message string        `json:"message"` //评论内容
+				Members []interface{} `json:"members"`
+				MaxLine int           `json:"max_line"`
 			} `json:"content,omitempty"`
 
 			ReplyControl struct {
@@ -36,20 +30,23 @@ type ReplyContainer struct {
 				SubReplyTitleText string `json:"sub_reply_title_text"`
 				TimeDesc          string `json:"time_desc"` //评论发布时间
 			} `json:"reply_control"`
+			Replies []struct {
+				Member struct { //评论用户
+					Mid   string `json:"mid"`   //用户id
+					Uname string `json:"uname"` //用户姓名
+					Sex   string `json:"sex"`   //性别
+				} `json:"member"`
+				Content struct {
+					Message string        `json:"message"` //评论内容
+					Members []interface{} `json:"members"`
+					MaxLine int           `json:"max_line"`
+				} `json:"content,omitempty"`
+			} `json:"replies"`
 		} `json:"replies"`
 	} `json:"data"`
 }
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-// RandomString 生成一个随机的user-agent
-func RandomString() string {
-	b := make([]byte, rand.Intn(10)+10)
-	for i := range b {
-		b[i] = letterBytes[rand.Intn(len(letterBytes))]
-	}
-	return string(b)
-}
 
 func main() {
 	c := colly.NewCollector()
@@ -68,11 +65,12 @@ func main() {
 		req.Headers.Set("sec-fetch-dest", "empty")
 		req.Headers.Set("sec-fetch-mode", "cors")
 		req.Headers.Set("sec-fetch-site", "same-site")
-		req.Headers.Set("user-agent", RandomString())
 	})
 	//结构体 用来存放评论数据
 	container := ReplyContainer{}
 	//c := colly.NewCollector() c是怎么来的
+	//访问url 这是json的请求网址
+
 	c.OnResponse(func(r *colly.Response) {
 		fmt.Println("response received", r.StatusCode) //打印状态码 成功访问为200
 		err := json.Unmarshal(r.Body, &container)      //r.Body为得到的json数据 []byte类型 进行反序列化 字节序列转化成对象
@@ -81,12 +79,14 @@ func main() {
 			log.Fatal(err)
 		}
 	})
-	//访问url
-	c.Visit("https://api.bilibili.com/x/v2/reply/wbi/main?oid=420981979&type=1&mode=3&pagination_str=%7B%22offset%22:%22%22%7D&plat=1&seek_rpid=&web_location=1315875&w_rid=d0716bedfae00abbbedeccee88bfde56&wts=1702404449")
 
+	c.Visit("https://api.bilibili.com/x/v2/reply/wbi/main?oid=420981979&type=1&mode=3&pagination_str=%7B%22offset%22:%22%22%7D&plat=1&seek_rpid=&web_location=1315875&w_rid=d0716bedfae00abbbedeccee88bfde56&wts=1702404449")
 	for i, reply := range container.Data.Replies {
 		fmt.Println(i, "姓名", reply.Member.Uname, "内容", reply.Content.Message)
-		fmt.Println(reply.Content.Contents.Message)
 		fmt.Println(reply.ReplyControl.TimeDesc, reply.ReplyControl.SubReplyEntryText, reply.ReplyControl.SubReplyEntryText)
+		for _, reply2 := range reply.Replies {
+			fmt.Println("姓名", reply2.Member.Uname, "内容", reply2.Content.Message)
+		}
 	}
+
 }
