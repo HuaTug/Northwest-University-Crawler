@@ -4,9 +4,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gocolly/colly"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
 	"log"
 )
 
+var (
+	db    *gorm.DB
+	Bilis []*BiliBili
+)
+
+type BiliBili struct {
+	gorm.Model
+	FirstName     string `json:"first_name" gorm:"column:first_name"`
+	FirstComment  string `json:"first_comment" gorm:"column:first_comment"`
+	SecondName    string `json:"second_name" gorm:"column:second_name"`
+	SecondComment string `json:"second_comment" gorm:"column:second_comment"`
+}
 type ReplyContainer struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
@@ -48,9 +62,19 @@ type ReplyContainer struct {
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
+func init() {
+	dsn := "root:123456@tcp(127.0.0.1:3306)/bug?charset=utf8mb4&parseTime=True"
+	d, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	if err != nil {
+		panic(err)
+	}
+	log.Print("数据库连接成功!")
+	db = d
+	db.AutoMigrate(&BiliBili{})
+}
+
 func main() {
 	c := colly.NewCollector()
-
 	//设置请求头
 	c.OnRequest(func(req *colly.Request) {
 		req.Headers.Set("authority", "api.bilibili.com")
@@ -86,7 +110,19 @@ func main() {
 		fmt.Println(reply.ReplyControl.TimeDesc, reply.ReplyControl.SubReplyEntryText, reply.ReplyControl.SubReplyEntryText)
 		for _, reply2 := range reply.Replies {
 			fmt.Println("姓名", reply2.Member.Uname, "内容", reply2.Content.Message)
+			temp2 := &BiliBili{
+				SecondComment: reply2.Content.Message,
+				SecondName:    reply2.Member.Uname,
+			}
+			Bilis = append(Bilis, temp2)
 		}
+		temp := &BiliBili{
+			FirstName:    reply.Member.Uname,
+			FirstComment: reply.Content.Message,
+		}
+		Bilis = append(Bilis, temp)
 	}
-
+	if err := db.Create(Bilis).Error; err != nil {
+		log.Println("插入失败")
+	}
 }
